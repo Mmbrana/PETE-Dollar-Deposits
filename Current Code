@@ -1,0 +1,308 @@
+function checkCellsAndProceeddollar() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var range1 = sheet.getRange('D5:D10');
+  var range2 = sheet.getRange('B15:H15');
+  var values1 = range1.getValues();
+  var values2 = range2.getValues();
+  var cellAO46 = sheet.getRange('AO46').getValue(); // Getting the value of cell AO46
+
+  // Checking if values in cell AO46 is higher than 0
+  if (cellAO46 > 0) {
+    var ui = SpreadsheetApp.getUi();
+    ui.alert('Your conversions are not Tally (RED). Please adjust it before proceeding.');
+    return; // Exiting the function if condition is met
+  }
+
+  var allFilled = true;
+
+  // Check if values1 and values2 have any empty cells
+  for (var i = 0; i < values1.length; i++) {
+    for (var j = 0; j < values1[i].length; j++) {
+      if (values1[i][j] === '') {
+        allFilled = false;
+        break;
+      }
+    }
+    if (!allFilled) break;
+  }
+
+  for (var i = 0; i < values2.length; i++) {
+    for (var j = 0; j < values2[i].length; j++) {
+      if (values2[i][j] === '') {
+        allFilled = false;
+        break;
+      }
+    }
+    if (!allFilled) break;
+  }
+
+  if (allFilled) {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var emailSheet = ss.getSheetByName('Email Data Dollar'); // Sheet with email, subject, message, and sender name
+
+    var emailDataRange = emailSheet.getDataRange();
+    var emailData = emailDataRange.getValues();
+
+    var emailCol = 3;
+    var subjectCol = 10;
+
+    for (var i = 1; i < emailData.length; i++) {
+      var emailAddress = emailData[i][emailCol - 1];
+      var subject = emailData[i][subjectCol - 1];
+
+      var confirmation = Browser.msgBox(
+        'Send Email to Treasury',
+        'Do you want to send the following email?\n\n' + 'To: ' + emailAddress + '\nSubject: ' + subject + '\n\n' + '\n\n[ Press OK to send or Cancel to stop. ]',
+        Browser.Buttons.OK_CANCEL
+      );
+
+      if (confirmation === 'ok') {
+        copyValuesAndFormatdollar(); // COPIES DATA TO END OF SHEETS FILE
+        pasteUniqueReferenceNumberInD11dollar(); // LOGGER
+        copyValueToCellsdollar(); // COPY AND PASTES CONTROL NUMBER TO END OF SHEETS FILE
+        copyValuesToAutoLog();
+        copyAndPasteTableDollar();        
+        sendEmailToTreasurydollar(); // EMAILS AND DELETES CURRENT DATA
+      } else {
+        var ui = SpreadsheetApp.getUi();
+        ui.alert('Email sending canceled. The email was not sent.');
+        break; // Exiting the loop if email sending is canceled
+      }
+    }
+  } else {
+    var ui = SpreadsheetApp.getUi();
+    ui.alert('Please fill all cells D5:D10 and B15:G44');
+  }
+}
+
+
+function copyValuesAndFormatdollar() {
+  var activeSheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var sourceRange = activeSheet.getRange('B88:AS94');
+  var targetRange = activeSheet.getRange('B100:AS106');
+
+  var sourceValues = sourceRange.getValues();
+  targetRange.setValues(sourceValues);
+}
+
+function pasteUniqueReferenceNumberInD11dollar() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var uniqueReferenceNumber;
+  
+  do {
+    uniqueReferenceNumber = generateUniqueReferenceNumber();
+  } while (!isUnique(uniqueReferenceNumber));
+  
+  sheet.getRange('D11').setValue(uniqueReferenceNumber);
+  
+  var spreadsheet = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1zwPQIh1PnyDR9sBYU0tGrEanqLeXRq1XqokzGme0Ck4/edit#gid=1413780723");
+  var uniqueSheet = spreadsheet.getSheetByName("UniqueRefNumber");
+  uniqueSheet.getRange('A' + (uniqueSheet.getLastRow() + 1)).setValue(uniqueReferenceNumber);
+}
+
+function copyValueToCellsdollar() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sourceValue = ss.getActiveSheet().getRange('D11').getValue();
+
+  if (sourceValue !== "" && sourceValue !== null) {
+    var targetRange1 = ss.getActiveSheet().getRange('L106');
+
+    targetRange1.setValue(sourceValue);
+  }
+}
+
+function sendEmailToTreasurydollar() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var emailSheet = ss.getSheetByName('Email Data Dollar'); // Sheet with email, subject, message, and sender name
+  var tableSheet = ss.getSheetByName('Table Data Dollar'); // Sheet with table data
+
+  var emailDataRange = emailSheet.getDataRange();
+  var emailData = emailDataRange.getValues();
+
+  var emailCol = 3;
+  var subjectCol = 10;
+  var messageCol = 11;
+  var ccCol = 4; // Assuming CC email addresses are in column D
+  var senderNameCol = 1; // Column R for sender's name
+  var additionalVarCol = 1; // Assuming additional dynamic variable is in column T
+
+  var logSpreadsheetId = '15n0RtdcpNPv7IuuuejeoZlv2ZcZgzG0Gw_kuSxll--E'; // Replace with the ID of the "SentEmailLog" spreadsheet
+  var logSheetName = 'Deposit Log'; // Name of the sheet to log details
+
+  var numRowsInTable = 31; // Number of rows in your table
+  var startRowTable = 1; // Assuming table data starts from row 2 in the TableData sheet
+
+  for (var i = 1; i < emailData.length; i++) {
+    var emailAddress = emailData[i][emailCol - 1];
+    var subject = emailData[i][subjectCol - 1];
+    var messageWithLineBreaks = emailData[i][messageCol - 1].replace(/\n/g, '<br/>');
+
+    var ccAddress = emailData[i][ccCol - 1];
+    var ccArray = ccAddress.split(',');
+    var ccEmails = [];
+    ccArray.forEach(function (cc) {
+      ccEmails.push(cc.trim());
+    });
+
+    var senderName = emailData[i][senderNameCol - 1];
+
+    var dynamicVar1 = emailData[i][4]; // Column 5
+    var dynamicVar2 = emailData[i][6]; // Column 7
+    var dynamicVar3 = emailData[i][7]; // Column 8
+    var amount = emailData[i][1];
+    var gDriveLink = emailData[i][12];
+    var amdTeam = emailData[i][16];
+    var additionalDynamicVar = emailData[i][additionalVarCol - 1] + ' ' + emailData[i][11]; // Additional dynamic variable - Column T
+
+    // Adding dynamic variables to the message with line breaks
+    messageWithLineBreaks += `<b><br/>Buyer's Name/SL Code: </b>${dynamicVar1}<b><br/>Project: </b>${dynamicVar2}<b><br/>Unit: </b>${dynamicVar3}`;
+
+    var messageWithTableAndMessage = composeMessageWithTableAndMessageDollar(tableSheet, startRowTable, numRowsInTable, messageWithLineBreaks, additionalDynamicVar);
+
+    // Compose email body with the message containing line breaks, table with bold header, and additional message
+    var emailBody = messageWithTableAndMessage;
+
+    // Log the email details with the HTML content
+    Logger.log('Email to: ' + emailAddress);
+    Logger.log('Subject: ' + subject);
+
+    // Send the email without confirmation
+    MailApp.sendEmail({
+      to: emailAddress,
+      subject: subject,
+      htmlBody: emailBody,
+      cc: ccEmails.join(','),
+      name: senderName // Set sender's name
+    });
+
+    // Log the email details to the "SentEmailLog" spreadsheet
+    var logSheet = SpreadsheetApp.openById(logSpreadsheetId).getSheetByName(logSheetName);
+
+    var additionalData = emailData[i][0]; // Data from column 1 in "EmailData" sheet
+    var logData = [new Date(), emailAddress, subject, additionalData, amount, gDriveLink,amdTeam]; // Include additional data in log
+
+    logSheet.appendRow(logData);
+
+    // Call NewEntry function after sending the email
+    NewEntrydollar();
+  }
+}
+
+function NewEntrydollar() {
+  var spreadsheet = SpreadsheetApp.getActive();
+  spreadsheet.getRange('D6:F8').clearContent();
+  spreadsheet.getRange('D10:F11').clearContent();  
+  spreadsheet.getRange('B15:G44').clearContent();
+  spreadsheet.getRange('J15:K44').clearContent();
+  spreadsheet.getRange('M15:N44').clearContent();
+  spreadsheet.getRange('P15:Q44').clearContent();
+  spreadsheet.getRange('S15:T44').clearContent();
+  spreadsheet.getRange('V15:W44').clearContent();
+  spreadsheet.getRange('Y15:Z44').clearContent();
+  spreadsheet.getRange('AB15:AC44').clearContent();
+  spreadsheet.getRange('AE15:AF44').clearContent();
+  spreadsheet.getRange('AH15:AI44').clearContent();
+  spreadsheet.getRange('AK15:AL44').clearContent();  
+  grantAccess2();
+}
+
+function composeMessageWithTableAndMessageDollar(tableSheet, startRowTable, numRowsInTable, additionalMessage, additionalDynamicVar) {
+  var tableDataRange = tableSheet.getRange(startRowTable, 1, numRowsInTable, 8); // Assuming 8 columns
+  var tableData = tableDataRange.getDisplayValues(); // Fetch displayed values instead of formulas
+
+  var emailBody = '';
+
+  // Adding additional message before the table
+  emailBody += '<p>' + additionalMessage + '</p><br/>';
+
+  emailBody += '<table border="1" style="border-collapse: collapse;">';
+  var headerRow = tableData[0]; // Assuming the first row is the header
+  emailBody += '<tr>';
+  for (var h = 0; h < headerRow.length; h++) {
+    emailBody += '<th style="padding: 10px;">' + headerRow[h] + '</th>'; // Apply padding to header cells
+  }
+  emailBody += '</tr>';
+  
+  for (var j = 1; j < tableData.length; j++) {
+    var rowHasValues = tableData[j].some(function(cellValue) {
+      return cellValue !== "";
+    });
+    if (rowHasValues) {
+      emailBody += '<tr>';
+      for (var k = 0; k < tableData[j].length; k++) {
+        emailBody += '<td style="padding: 10px;">' + tableData[j][k] + '</td>'; // Apply padding to data cells
+      }
+      emailBody += '</tr>';
+    }
+  }
+  emailBody += '</table>';
+
+  // Adding additional dynamic variable after the table without any enclosing tags
+  emailBody += `<p>Thank you!<br/>Best regards, <br/>${additionalDynamicVar}</p>`;
+
+  return emailBody;
+}
+
+function generateUniqueReferenceNumber() {
+  var randomNumber = Math.floor(Math.random() * 500000); // Generate random number
+  var now = new Date();
+  var hh = now.getHours().toString().padStart(2, '0'); // Get current hour
+  var mm = now.getMinutes().toString().padStart(2, '0'); // Get current minute
+  var ss = now.getSeconds().toString().padStart(2, '0'); // Get current second
+  
+  var referenceNumber = randomNumber // Combine random number and time components
+  
+  return parseInt(referenceNumber)+ '-' + hh + mm + ss; // Convert reference number to integer
+}
+
+function isUnique(referenceNumber) {
+  var spreadsheet = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1zwPQIh1PnyDR9sBYU0tGrEanqLeXRq1XqokzGme0Ck4/edit#gid=1413780723");
+  var sheet = spreadsheet.getSheetByName("UniqueRefNumber");
+  var data = sheet.getRange("A2:A").getValues().flat();
+  return !data.includes(referenceNumber);
+}
+
+function copyValuesToAutoLog() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var rangeToCopy = sheet.getRange('B86:O86');
+  var valuesToCopy = rangeToCopy.getValues();
+
+  var spreadsheet = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1zwPQIh1PnyDR9sBYU0tGrEanqLeXRq1XqokzGme0Ck4/edit#gid=620231122");
+  var uniqueSheet = spreadsheet.getSheetByName("Auto-log");
+
+  // Get the last row in the "Auto-log" sheet
+  var lastRow = uniqueSheet.getLastRow();
+
+  // Paste values into the next available row
+  uniqueSheet.getRange('A' + (lastRow + 1) + ':N' + (lastRow + 1)).setValues(valuesToCopy);
+}
+
+function copyAndPasteTableDollar() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var sourceSheet = spreadsheet.getSheetByName("SPEF1 Dollar");
+
+  // Get the data range from the source sheet
+  var dataRange = sourceSheet.getRange("B2:R31");
+  var filteredData = dataRange.getValues().filter(function(row) {
+    return row[0] !== '';
+  });
+
+  // Get the values from the range AC2:AX31
+  var additionalDataRange = sourceSheet.getRange("AC2:AX31");
+  var additionalData = additionalDataRange.getValues();
+
+  // Open the target spreadsheet by URL
+  var targetSpreadsheet = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1iKT5kuTxRhz15bfJ7qt3Ih7iUU-izHsKfIX12SI60WY/edit#gid=0");
+  var targetSheet = targetSpreadsheet.getSheetByName("Endorsed Payments - DEP");
+
+  // Find the last used row in column D
+  var lastRow = targetSheet.getRange("D:D").getValues().flat().filter(String).length + 1;
+
+  // Get the range to paste the filtered data starting from the next available row in column D
+  var targetRange = targetSheet.getRange(lastRow, 3, filteredData.length, filteredData[0].length);
+  targetRange.setValues(filteredData);
+
+  // Get the range to paste the additional data starting from the next available row in column D
+  var additionalTargetRange = targetSheet.getRange(lastRow, 30, additionalData.length, additionalData[0].length);
+  additionalTargetRange.setValues(additionalData);
+}
